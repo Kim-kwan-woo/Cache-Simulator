@@ -1,3 +1,6 @@
+# Updated by Kim-kwan-woo
+- 2 level cache -> 3 level cache
+
 # Cache-Simulator
 - A two-level (L1 and L2) cache simulator is simulated. The cache simulator takes several parameters describing the cache (block size, associativity, etc) along with a memory access trace file for an input program. 
 

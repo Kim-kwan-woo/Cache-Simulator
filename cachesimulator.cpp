@@ -1,6 +1,6 @@
 /*
 Cache Simulator
-Level one L1 and level two L2 cache parameters are read from file (block size, line per set and set per cache).
+Level one L1 and level two L2 level three L3 cache parameters are read from file (block size, line per set and set per cache).
 The 32 bit address is divided into tag bits (t), set index bits (s) and block offset bits (b)
 s = log2(#sets)   b = log2(block size)  t=32-s-b
 */
@@ -32,6 +32,9 @@ struct config{
        int L2blocksize;
        int L2setsize;
        int L2size;
+       int L3blocksize;
+       int L3setsize;
+       int L3size;
        };
 
 class check_cache{
@@ -89,22 +92,32 @@ int main(int argc, char* argv[]){
       cache_params>>cacheconfig.L2blocksize;           
       cache_params>>cacheconfig.L2setsize;        
       cache_params>>cacheconfig.L2size;
+      cache_params>>dummyLine;              
+      cache_params>>cacheconfig.L3blocksize;           
+      cache_params>>cacheconfig.L3setsize;        
+      cache_params>>cacheconfig.L3size;
     }
 
     check_cache mycacheL1( cacheconfig.L1blocksize , cacheconfig.L1setsize , cacheconfig.L1size);
     check_cache mycacheL2( cacheconfig.L2blocksize , cacheconfig.L2setsize , cacheconfig.L2size);
+    check_cache mycacheL3( cacheconfig.L3blocksize , cacheconfig.L3setsize , cacheconfig.L3size);
     int pL1 = pow(2, mycacheL1.s);
-    int qL2 = pow(2,mycacheL2.s);
+    int qL2 = pow(2, mycacheL2.s);
+    int qL3 = pow(2, mycacheL3.s);
     cout<< pL1 << "The index of L1 cache in tag\n";
     cout<< qL2 << "The index of L2 cache in tag\n";
+    cout<< qL3 << "The index of L3 cache in tag\n";
     int tag_arrayL1[pL1 - 1][cacheconfig.L1setsize];
     int tag_arrayL2[qL2-1][cacheconfig.L2setsize];
+    int tag_arrayL3[qL3-1][cacheconfig.L3setsize];
     
     int valid_arrayL1[pL1 - 1][cacheconfig.L1setsize];
     int valid_arrayL2[qL2-1][cacheconfig.L2setsize];
+    int valid_arrayL3[qL3-1][cacheconfig.L3setsize];
    
     int L1AcceState =0; 
     int L2AcceState =0; 
+    int L3AcceState =0; 
    
     ifstream traces;
     ofstream tracesout;
@@ -131,6 +144,7 @@ int main(int argc, char* argv[]){
                                                 
             int countL1 = 0 ;
             int countL2 = 0;
+	    int countL3 = 0;
             int ta1 = mycacheL1.t;
             int ind1 = mycacheL1.s;
             int off1 = mycacheL1.b; 
@@ -264,9 +278,125 @@ int main(int argc, char* argv[]){
                  }
             
             }
-            tracesout<< L1AcceState << " " << L2AcceState << endl;  // Output hit/miss results for L1 and L2 to the output file;
+
+            int ta3 = mycacheL3.t;
+            int ind3 = mycacheL3.s;
+            int off3=mycacheL3.b; 
+
+            cout<<"this is the address in hex"<< xaddr <<"\n"<<endl;
+            cout<<"this is the access address in hex"<< accessaddr <<"\n"<<endl;
+            
+            int tagL3 =  (bitset<32>((accessaddr.to_string().substr(0,ta3))).to_ulong());
+            cout<<tagL3<<"this is tag3 x in main for L3"<<endl;
+            
+            int indexL3 (bitset<32>((accessaddr.to_string().substr(ta3,ind3))).to_ulong());
+            cout<<indexL3<<"this is index3 x in main for L3"<<endl;
+            
+            int offL3 (bitset<32>((accessaddr.to_string().substr(ta3+ind3,off3))).to_ulong());
+            cout<<offL3<<"this is offset3 x in main for L3"<<endl;
+
+            if (accesstype.compare("R")==0){
+                 // read access to the L2 Cache, 
+                 //  and then L3 (if required), 
+                 //  update the L2 and L3 access state variable;
+                 
+                 for(int jj = 0 ; jj<cacheconfig.L1setsize;jj++){
+                     if((tag_arrayL1[indexL1][jj] == tagL1) && (valid_arrayL1[indexL1][jj] == 1)){
+                         L3AcceState =0;
+                         cout<<" Read HIT NA \n";
+                         break;
+                     }
+                 }
+                  if(L1AcceState != 1 && L2AcceState != 1){
+                      for(int jj = 0;jj<cacheconfig.L3setsize ; jj++){
+                          if((tag_arrayL3[indexL3][jj]==tagL3) && (valid_arrayL3[indexL3][jj]==1)){
+                              L3AcceState = 1;
+                               for(int jj =0; jj < cacheconfig.L1setsize;jj++){
+                                  if(valid_arrayL2[indexL2][jj] == 0){
+					tag_arrayL2[indexL2][jj] = tagL2;
+                                        valid_arrayL2[indexL2][jj] = 1;
+                                        break;
+                                  }
+                                  else{
+                                        jj = countL2;
+					tag_arrayL2[indexL2][jj] = tagL2;
+                                        countL2 =countL2 + 1;              
+                                        
+                                        if(countL2 == cacheconfig.L2setsize){
+                                          countL2=0;
+                                        }
+                                  }
+                               }
+                               break;
+                          }
+                      }
+                      if(L3AcceState == 0){
+                          L3AcceState = 2;
+                          for(int jj = 0;jj < cacheconfig.L3setsize;jj++){
+                            
+                                if(valid_arrayL3[indexL3][jj]==0){
+                                    tag_arrayL3[indexL3][jj] = tagL3;
+                                    valid_arrayL3[indexL3][jj] = 1;
+                                    break;
+                                }
+                                else{
+                                    jj = countL3;
+                                    tag_arrayL3[indexL3][jj] = tagL3;
+                                    countL3 = countL3 + 1;
+                                    if(countL3 == cacheconfig.L3setsize){
+                                        countL3 = 0;
+                                    }
+                                }
+                          }
+                          for(int jj = 0 ; jj < cacheconfig.L2setsize ; jj ++){
+                              if(valid_arrayL2[indexL2][jj] == 0){
+				    tag_arrayL2[indexL2][jj] = tagL2;
+                                    valid_arrayL2[indexL2][jj] =1;
+                                    break;              
+                              }
+                              else{
+                                    jj = countL2;
+                                    tag_arrayL2[indexL2][jj] = tagL2;
+                                    countL2 += 1;
+                                    if(countL2== cacheconfig.L2setsize){
+                                        countL2 = 0;
+                                    }
+                              }
+                          }
+                      }
+                                   
+                  }
+            }
+                            
+            else{    
+                 for(int jj = 0 ; jj < cacheconfig.L1setsize ; jj ++){
+                     if((tag_arrayL1[indexL1][jj] == tagL1) && (valid_arrayL1[indexL1][jj]==1)){
+                         L3AcceState = 0;
+                         cout<<"";
+                         break;
+                     }
+                 }
+                 
+                 if(L1AcceState != 3 && L2AcceState != 3){
+                     for(int jj =0 ; jj < cacheconfig.L3setsize; jj++){
+                         if((tag_arrayL3[indexL3][jj] == tagL3)&& (valid_arrayL3[indexL3][jj]==1)){
+                             L3AcceState = 3;
+                             break;
+                         }
+                     
+                     }
+                     if(L3AcceState==0){
+                        L3AcceState = 4;
+                        
+                     }
+                 }
+            
+            }
+      
+            tracesout<< L1AcceState << " " << L2AcceState << " " << L3AcceState << endl;  // Output hit/miss results for L1 and L2 and L3 to the output file;
             L1AcceState = 0;
             L2AcceState = 0;
+	    L3AcceState = 0;
              
         }
         traces.close();
